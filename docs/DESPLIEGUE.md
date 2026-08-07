@@ -26,16 +26,49 @@ horas extra). Si alguien usa esos reportes, no los tendrá tras el corte.
 
 | Software | Versión | Descarga |
 |---|---|---|
-| **Python** | 3.12 o superior (64 bits) | https://www.python.org/downloads/windows/ |
+| **Python** | 3.12 o 3.13 · **3.10 mínimo** (64 bits) | https://www.python.org/downloads/windows/ |
 | **NSSM** | 2.24 | https://nssm.cc/download |
 
 Nada más. PostgreSQL ya está instalado (lo usa BioTime) y no se toca.
 
-**Python:** en el instalador, marcar **"Add python.exe to PATH"**. Verificar:
+### Python: cuidado con el que ya está instalado
+
+> ⚠️ **El servidor ya tiene Python.** BioTime 8.5 es una aplicación Django y
+> trae el suyo, habitualmente **3.7**. No lo desinstales ni lo actualices:
+> romperías BioTime, que es tu plan de rollback.
+
+Comprobar qué hay antes de instalar nada:
 
 ```powershell
-python --version      # Python 3.12.x
+python --version
+where.exe python
 ```
+
+Si sale 3.7, 3.8 o 3.9, **no sirve**: esta aplicación necesita **3.10 como
+mínimo** (usa `dataclass(slots=True)` y uniones de tipo `X | None`).
+
+Instala Python 3.12 **al lado**, y en el instalador **desmarca
+"Add python.exe to PATH"** para no alterar el entorno de BioTime.
+
+Localizar el intérprete nuevo:
+
+```powershell
+py -0p
+```
+
+Anota la ruta de la 3.12 (normalmente `C:\Program Files\Python312\python.exe`).
+Se usa en el paso 4.
+
+### Síntoma si te equivocas de versión
+
+```
+ERROR: Could not find a version that satisfies the requirement fastapi==0.115.6
+       (from versions: ... 0.103.0, 0.103.1, 0.103.2)
+WARNING: You are using pip version 19.2.3
+```
+
+PyPI solo ofrece las versiones compatibles con el intérprete en uso. Si la lista
+se corta en `0.103.2` y pip es el `19.2.3`, estás en Python 3.7.
 
 **NSSM:** descomprimir y copiar `win64\nssm.exe` a una carpeta del PATH, por
 ejemplo `C:\Windows\System32`. Verificar:
@@ -53,8 +86,7 @@ No des por hecho ningún nombre ni puerto: averígualos.
 ### 2.1 Servicios de BioTime
 
 ```powershell
-Get-Service | Where-Object { $_.DisplayName -match 'BioTime|ZK|postgres' } |
-    Format-Table Name, DisplayName, Status, StartType -AutoSize
+Get-Service -DisplayName *BioTime*, *ZK*, *postgres* | Format-Table Name, DisplayName, Status, StartType -AutoSize
 ```
 
 Aparecerán al menos dos tipos:
@@ -92,9 +124,7 @@ Valores de esta instalación:
 Para confirmarlo desde PowerShell:
 
 ```powershell
-Get-NetTCPConnection -State Listen |
-    Where-Object { (Get-Process -Id $_.OwningProcess -EA SilentlyContinue).ProcessName -match 'postgres' } |
-    Select-Object LocalAddress, LocalPort -Unique
+Get-NetTCPConnection -State Listen | Where-Object { (Get-Process -Id $_.OwningProcess -EA SilentlyContinue).ProcessName -match 'postgres' } | Select-Object LocalAddress, LocalPort -Unique
 ```
 
 ### 2.4 Localizar psql.exe
@@ -102,8 +132,7 @@ Get-NetTCPConnection -State Listen |
 Hace falta para ejecutar los scripts SQL. Viene con la instalación de BioTime:
 
 ```powershell
-Get-ChildItem C:\ZKBioTime -Recurse -Filter psql.exe -EA SilentlyContinue |
-    Select-Object -First 1 -ExpandProperty FullName
+Get-ChildItem C:\ZKBioTime -Recurse -Filter psql.exe -EA SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
 ```
 
 Anota la ruta: se usa en los pasos 5 y 7.
@@ -111,9 +140,7 @@ Anota la ruta: se usa en los pasos 5 y 7.
 ### 2.3 Quién ocupa el puerto 83
 
 ```powershell
-Get-NetTCPConnection -LocalPort 83 -State Listen |
-    Select-Object LocalAddress, LocalPort, OwningProcess,
-        @{n='proceso';e={(Get-Process -Id $_.OwningProcess).ProcessName}}
+Get-NetTCPConnection -LocalPort 83 -State Listen | Select-Object LocalPort, OwningProcess, @{n='proceso';e={(Get-Process -Id $_.OwningProcess).ProcessName}}
 ```
 
 Debe salir el proceso de BioTime. Es el puerto que hay que liberar en la fase 2.
@@ -135,10 +162,21 @@ Sin git, copiar la carpeta por red y descomprimirla en `C:\apps\biotime-reg`.
 
 ## Paso 4 — Instalar dependencias
 
+Usar la **ruta completa** del Python 3.12 localizado en el paso 1. Escribir solo
+`python` tomaría el de BioTime.
+
 ```powershell
 cd C:\apps\biotime-reg
-python -m venv .venv
+& "C:\Program Files\Python312\python.exe" -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python --version
+```
+
+Debe imprimir `Python 3.12.x`. Si dice otra cosa, la ruta no era la correcta:
+borra el entorno con `Remove-Item -Recurse -Force .venv` y repite.
+
+```powershell
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 

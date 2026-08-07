@@ -1,6 +1,14 @@
+# Probado con Python 3.12 y 3.13. Mínimo 3.10 (ver app/__init__.py).
+# Todas las dependencias tienen wheel para Windows + cp313: no hace falta
+# compilador de C en el servidor.
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
+
+# NO bajar de 0.30.0: es la primera versión de asyncpg con wheel para Python
+# 3.13. Con una anterior, pip intentaría compilar la extensión en C y fallaría
+# en el servidor por falta de Visual C++ Build Tools.
 asyncpg==0.30.0
+
 pydantic-settings==2.7.1
 
 # Imprescindible en Windows: el sistema no trae la base IANA de zonas horarias
