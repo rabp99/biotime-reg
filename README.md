@@ -45,6 +45,14 @@ permite migrar consumo e ingesta por separado.
 | `app/security.py` | Verificación de contraseñas Django + JWT |
 | `sql/001_schema.sql` | Añadidos sobre la base de BioTime (idempotente) |
 
+## Despliegue
+
+Para instalar en el servidor de producción, seguir
+**[`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md)**: guía paso a paso con enlaces de
+descarga, migración en dos fases, verificación y diagnóstico.
+
+Lo que sigue es el resumen para desarrollo o consulta rápida.
+
 ## Instalación (Windows Server)
 
 ```powershell
@@ -213,7 +221,12 @@ equipo antes de comprometer los cuatro.
 
 ## Referencias
 
-`sdk/` contiene material propietario de ZKTeco (excluido del repositorio):
-especificación del protocolo PUSH, manual del API de BioTime 8.5 y `pushdemo`,
-la implementación Java de referencia. El firmware en producción es push
-**3.0.4S**, más nuevo que el que documenta `pushdemo` (2.x).
+`docs/referencia-zkteco/` guarda la especificación del protocolo PUSH y el
+manual del API de BioTime 8.5. Es material propietario de ZKTeco bajo
+confidencialidad: excluido por `.gitignore`, **no republicar**.
+
+El resto del paquete original —incluido `Pushdemo04042022`, la implementación
+Java de referencia— está en `..\_backup-zkteco-sdk\`, fuera del repositorio. Se
+consultó para escribir `app/protocol.py`, pero es de la era push **2.x** y el
+firmware en producción es **3.0.4S**: ante una discrepancia, manda el PDF de la
+especificación, no el código de ejemplo.

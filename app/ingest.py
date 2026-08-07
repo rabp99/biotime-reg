@@ -36,7 +36,15 @@ from app.protocol import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-MAX_BODY_LOG_BYTES = 1_000_000  # no guardar fotos completas en la auditoría
+#: Tope de tamaño del cuerpo a guardar en la auditoría.
+MAX_BODY_LOG_BYTES = 1_000_000
+
+#: Tablas cuyo cuerpo NO se guarda: son binarios (fotos, plantillas biométricas)
+#: que esta aplicación no procesa. Guardarlos haría crecer la auditoría cientos
+#: de KB por marcación sin aportar nada: la red de seguridad existe para poder
+#: reprocesar marcaciones, y las fotos no lo son. De estas peticiones se
+#: conserva igualmente la fila con sus metadatos, para saber que ocurrieron.
+TABLAS_SIN_CUERPO = {"ATTPHOTO", "BIODATA", "BIOPHOTO", "FINGERTMP", "FACE"}
 
 
 def _text(body: str, status: int = 200) -> Response:
@@ -136,7 +144,12 @@ async def _store_raw(
     if not settings.store_raw_bodies:
         return None
 
-    stored = body if body is not None and len(body) <= MAX_BODY_LOG_BYTES else None
+    tabla = (request.query_params.get("table") or "").upper()
+    if body is None or tabla in TABLAS_SIN_CUERPO or len(body) > MAX_BODY_LOG_BYTES:
+        stored = None
+    else:
+        stored = body
+
     pool = get_pool()
     async with pool.acquire() as conn:
         return await repository.insert_raw(

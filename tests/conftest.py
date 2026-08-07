@@ -6,9 +6,54 @@ import os
 
 import pytest
 
+from app.config import get_settings
+
 TEST_DSN = os.environ.get(
     "TEST_PG_DSN", "postgresql://postgres:devlocal@127.0.0.1:55432/biotime"
 )
+
+#: Configuración base de las pruebas.
+#:
+#: Se fija TODA la configuración sensible de forma explícita, incluidas las
+#: listas de control de acceso en vacío. Sin esto, las pruebas heredarían el
+#: .env de producción —que restringe por IP— y fallarían con 403 en cualquier
+#: máquina donde ese fichero exista, como el propio servidor. Una prueba no
+#: puede depender de qué ficheros haya alrededor.
+BASE_ENV = {
+    "PG_DSN": TEST_DSN,
+    "JWT_SECRET": "secreto-de-prueba",
+    "ALLOWED_SNS": "",
+    "ALLOWED_SOURCE_IPS": "",
+    "API_ALLOWED_IPS": "",
+    "API_RENDER_TZ": "America/Lima",
+    "DEVICE_TZ_FALLBACK": "-5",
+    "COMPANY_CODE": "1",
+    "STORE_RAW_BODIES": "true",
+}
+
+
+def set_test_env(**overrides: str) -> None:
+    """Aplica la configuración base de pruebas, con los cambios indicados.
+
+    Las variables de entorno tienen prioridad sobre el .env en
+    pydantic-settings, así que fijarlas aquí aísla las pruebas por completo.
+    """
+    for key, value in {**BASE_ENV, **overrides}.items():
+        os.environ[key] = value
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def entorno_aislado():
+    """Restaura el entorno tras cada prueba para no contaminar a la siguiente."""
+    previo = {key: os.environ.get(key) for key in BASE_ENV}
+    yield
+    for key, value in previo.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+    get_settings.cache_clear()
 
 
 def skip_if_db_unavailable(exc: BaseException) -> None:

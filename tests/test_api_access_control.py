@@ -20,7 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from tests.conftest import TEST_DSN, ClientIP, skip_if_db_unavailable
+from tests.conftest import ClientIP, set_test_env, skip_if_db_unavailable
 
 HORARIO360_IP = "161.132.68.120"
 INTRUSO_IP = "203.0.113.9"
@@ -29,10 +29,7 @@ INTRUSO_IP = "203.0.113.9"
 @contextmanager
 def api_client(source_ip: str, allowed_ips: str):
     """Cliente del API visto desde `source_ip`, con la lista dada configurada."""
-    os.environ["PG_DSN"] = TEST_DSN
-    os.environ["JWT_SECRET"] = "secreto-de-prueba"
-    os.environ["API_ALLOWED_IPS"] = allowed_ips
-    get_settings.cache_clear()
+    set_test_env(API_ALLOWED_IPS=allowed_ips)
 
     from app.main import api_app
 

@@ -21,7 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from tests.conftest import TEST_DSN, skip_if_db_unavailable
+from tests.conftest import TEST_DSN, set_test_env, skip_if_db_unavailable
 
 TEST_SN = "VDE2251700310"          # equipo real, terminal_tz = -5
 TEST_EMP_CODE = "999999999"        # código inexistente: no colisiona con datos reales
@@ -37,9 +37,10 @@ async def _cleanup() -> None:
         await conn.execute(
             "DELETE FROM iclock_transaction WHERE emp_code = $1", TEST_EMP_CODE
         )
+        # Todas las filas del equipo de prueba, no solo las de ATTLOG: las
+        # pruebas también generan ATTPHOTO y otras tablas.
         await conn.execute(
-            "DELETE FROM zk_raw_payload WHERE device_sn = $1 AND table_name = 'ATTLOG'",
-            TEST_SN,
+            "DELETE FROM zk_raw_payload WHERE device_sn = $1", TEST_SN
         )
     finally:
         await conn.close()
@@ -47,11 +48,7 @@ async def _cleanup() -> None:
 
 @pytest.fixture(scope="module")
 def client():
-    os.environ["PG_DSN"] = TEST_DSN
-    os.environ["JWT_SECRET"] = "secreto-de-prueba"
-    os.environ["ALLOWED_SNS"] = TEST_SN
-    os.environ["API_RENDER_TZ"] = "America/Lima"
-    get_settings.cache_clear()
+    set_test_env(ALLOWED_SNS=TEST_SN)
 
     from app.main import app
 
@@ -184,6 +181,90 @@ def test_lote_grande_con_lineas_corruptas(client):
 
     assert _push(client, body).text.strip() == "OK"
     assert len(_run(_fetch_utc(TEST_EMP_CODE))) == 5
+
+
+def test_attlog_guarda_el_cuerpo_crudo(client):
+    """La red de seguridad: si el parser falla, el dato original sigue disponible.
+
+    El terminal avanza su puntero al recibir OK y no reenvía. Sin esta copia,
+    una línea que el parser no entienda se perdería sin dejar rastro.
+    """
+    cuerpo = f"{TEST_EMP_CODE}\t2026-08-07 07:00:00\t255\t15\t0\n"
+    _push(client, cuerpo)
+
+    async def leer():
+        conn = await asyncpg.connect(TEST_DSN)
+        try:
+            return await conn.fetchrow(
+                """
+                SELECT body, body_bytes, parsed_rows, inserted_rows, skipped_lines
+                FROM zk_raw_payload
+                WHERE device_sn = $1 AND table_name = 'ATTLOG'
+                ORDER BY id DESC LIMIT 1
+                """,
+                TEST_SN,
+            )
+        finally:
+            await conn.close()
+
+    fila = _run(leer())
+    assert fila is not None
+    assert fila["body"].decode("utf-8") == cuerpo
+    assert fila["parsed_rows"] == 1
+    assert fila["inserted_rows"] == 1
+    assert fila["skipped_lines"] == 0
+
+
+def test_attlog_registra_las_lineas_descartadas(client):
+    """skipped_lines es lo que permite detectar que el firmware envía algo nuevo."""
+    _push(client, (
+        f"{TEST_EMP_CODE}\t2026-08-07 07:00:00\t255\t15\t0\n"
+        "linea que el parser no entiende\n"
+    ))
+
+    async def leer():
+        conn = await asyncpg.connect(TEST_DSN)
+        try:
+            return await conn.fetchrow(
+                "SELECT parsed_rows, inserted_rows, skipped_lines FROM zk_raw_payload "
+                "WHERE device_sn = $1 AND table_name = 'ATTLOG' ORDER BY id DESC LIMIT 1",
+                TEST_SN,
+            )
+        finally:
+            await conn.close()
+
+    fila = _run(leer())
+    assert fila["parsed_rows"] == 1
+    assert fila["skipped_lines"] == 1
+
+
+def test_fotos_no_ocupan_espacio_en_la_auditoria(client):
+    """De ATTPHOTO se guarda la fila pero no el binario.
+
+    No procesamos fotos: almacenarlas haría crecer la auditoría cientos de KB
+    por marcación sin que sirvan para reprocesar nada.
+    """
+    client.post(
+        "/iclock/cdata",
+        params={"SN": TEST_SN, "table": "ATTPHOTO"},
+        content=b"\x89PNG\r\n\x1a\n" + b"\x00" * 5000,
+    )
+
+    async def leer():
+        conn = await asyncpg.connect(TEST_DSN)
+        try:
+            return await conn.fetchrow(
+                "SELECT body, body_bytes FROM zk_raw_payload "
+                "WHERE device_sn = $1 AND table_name = 'ATTPHOTO' ORDER BY id DESC LIMIT 1",
+                TEST_SN,
+            )
+        finally:
+            await conn.close()
+
+    fila = _run(leer())
+    assert fila is not None, "debe quedar constancia de que la petición ocurrió"
+    assert fila["body"] is None, "el binario no debe almacenarse"
+    assert fila["body_bytes"] > 5000, "pero sí su tamaño"
 
 
 def test_sn_desconocido_es_rechazado(client):

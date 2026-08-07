@@ -16,14 +16,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from tests.conftest import TEST_DSN, skip_if_db_unavailable
+from tests.conftest import TEST_DSN, set_test_env, skip_if_db_unavailable
 
 
 @pytest.fixture(scope="module")
 def client():
-    os.environ["PG_DSN"] = TEST_DSN
-    os.environ["JWT_SECRET"] = "secreto-de-prueba"
-    get_settings.cache_clear()
+    set_test_env()
 
     from app.main import app
 
