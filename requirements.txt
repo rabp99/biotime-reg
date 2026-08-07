@@ -1,0 +1,18 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+asyncpg==0.30.0
+pydantic-settings==2.7.1
+
+# Imprescindible en Windows: el sistema no trae la base IANA de zonas horarias
+# y zoneinfo falla con ZoneInfoNotFoundError('America/Lima'). El servidor de
+# producción es Windows Server, así que sin esto el API no arranca.
+tzdata==2025.2
+
+# Desarrollo / pruebas
+pytest==8.3.4
+httpx==0.28.1
+
+# Nota: NO se usa pyzk. Los terminales están detrás de NAT y no son
+# alcanzables desde el servidor, así que el camino PULL (TCP 4370) es
+# inviable. El backfill se hace con el comando DATA QUERY ATTLOG del
+# propio protocolo, que el terminal responde empujando los datos.

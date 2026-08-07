@@ -1,0 +1,25 @@
+# Dumps y datos de producción: nunca al repositorio.
+# El respaldo vive fuera del proyecto, en ..\_backup-zkteco-sdk\
+dump/
+*.dump
+*.sql.gz
+*.backup
+
+# Credenciales
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Documentación de ZKTeco: material propietario bajo confidencialidad.
+# Se conserva localmente porque es la referencia autoritativa del protocolo,
+# pero no puede publicarse en GitHub.
+docs/referencia-zkteco/
+
+# Logs de los servicios de Windows
+logs/
