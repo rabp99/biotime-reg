@@ -50,7 +50,11 @@ function Install-One {
         Start-Sleep -Seconds 1
     }
 
-    & nssm install $Name $Python '-m' 'app.main' $Mode
+    # -E hace que el intérprete ignore las variables PYTHON*. Es imprescindible
+    # en este servidor: BioTime define PYTHONHOME a nivel de sistema apuntando a
+    # C:\ZKBioTime\Python37, y sin -E cualquier Python cargaría la biblioteca
+    # estándar del 3.7 y reventaría con "SRE module mismatch".
+    & nssm install $Name $Python '-E' '-m' 'app.main' $Mode
     & nssm set $Name AppDirectory      $Root
     & nssm set $Name DisplayName       "biotime-reg ($Mode)"
     & nssm set $Name Description       "Marcaciones ZKTeco - $Mode"

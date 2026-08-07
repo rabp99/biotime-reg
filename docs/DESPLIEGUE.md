@@ -47,7 +47,7 @@ where.exe python
 Si sale 3.7, 3.8 o 3.9, **no sirve**: esta aplicación necesita **3.10 como
 mínimo** (usa `dataclass(slots=True)` y uniones de tipo `X | None`).
 
-Instala Python 3.12 **al lado**, y en el instalador **desmarca
+Instala Python 3.12 o 3.13 **al lado**, y en el instalador **desmarca
 "Add python.exe to PATH"** para no alterar el entorno de BioTime.
 
 Localizar el intérprete nuevo:
@@ -56,8 +56,10 @@ Localizar el intérprete nuevo:
 py -0p
 ```
 
-Anota la ruta de la 3.12 (normalmente `C:\Program Files\Python312\python.exe`).
-Se usa en el paso 4.
+Anota su ruta completa; se usa en el paso 4. Según cómo se instale será algo
+como `C:\Program Files\Python313\python.exe` o, si se instaló solo para el
+usuario actual,
+`C:\Users\Administrador\AppData\Local\Programs\Python\Python313\python.exe`.
 
 ### Síntoma si te equivocas de versión
 
@@ -127,6 +129,14 @@ Para confirmarlo desde PowerShell:
 Get-NetTCPConnection -State Listen | Where-Object { (Get-Process -Id $_.OwningProcess -EA SilentlyContinue).ProcessName -match 'postgres' } | Select-Object LocalAddress, LocalPort -Unique
 ```
 
+### 2.3 Quién ocupa el puerto 83
+
+```powershell
+Get-NetTCPConnection -LocalPort 83 -State Listen | Select-Object LocalPort, OwningProcess, @{n='proceso';e={(Get-Process -Id $_.OwningProcess).ProcessName}}
+```
+
+Debe salir el proceso de BioTime. Es el puerto que hay que liberar en la fase 2.
+
 ### 2.4 Localizar psql.exe
 
 Hace falta para ejecutar los scripts SQL. Viene con la instalación de BioTime:
@@ -136,14 +146,6 @@ Get-ChildItem C:\ZKBioTime -Recurse -Filter psql.exe -EA SilentlyContinue | Sele
 ```
 
 Anota la ruta: se usa en los pasos 5 y 7.
-
-### 2.3 Quién ocupa el puerto 83
-
-```powershell
-Get-NetTCPConnection -LocalPort 83 -State Listen | Select-Object LocalPort, OwningProcess, @{n='proceso';e={(Get-Process -Id $_.OwningProcess).ProcessName}}
-```
-
-Debe salir el proceso de BioTime. Es el puerto que hay que liberar en la fase 2.
 
 ---
 
@@ -162,23 +164,65 @@ Sin git, copiar la carpeta por red y descomprimirla en `C:\apps\biotime-reg`.
 
 ## Paso 4 — Instalar dependencias
 
-Usar la **ruta completa** del Python 3.12 localizado en el paso 1. Escribir solo
+### 4.1 Neutralizar PYTHONHOME de BioTime
+
+> ⚠️ **BioTime define `PYTHONHOME` a nivel de sistema**, apuntando a
+> `C:\ZKBioTime\Python37`. Eso hace que *cualquier* Python que arranques cargue
+> la biblioteca estándar del 3.7, aunque el ejecutable sea el 3.13.
+
+Comprobar si está:
+
+```powershell
+Get-ChildItem Env: | Where-Object Name -like 'PYTHON*'
+```
+
+**No borres esa variable del sistema: BioTime la necesita.** Basta con quitarla
+de la sesión actual, lo que no afecta al resto del servidor:
+
+```powershell
+Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue
+Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+```
+
+Además, todos los comandos usan el flag **`-E`**, que hace que el intérprete
+ignore las variables `PYTHON*`. Los servicios se instalan con `-E` de forma
+permanente (ver paso 9), así que en producción el problema no reaparece.
+
+#### Síntoma si te lo saltas
+
+```
+Fatal Python error: init_import_site: Failed to import the site module
+  ...
+  File "C:\ZKBioTime\Python37\Lib\sre_compile.py", line 17, in <module>
+AssertionError: SRE module mismatch
+```
+
+Intérprete nuevo intentando usar la biblioteca estándar del 3.7.
+
+### 4.2 Crear el entorno virtual
+
+Usar la **ruta completa** del Python instalado en el paso 1. Escribir solo
 `python` tomaría el de BioTime.
 
 ```powershell
 cd C:\apps\biotime-reg
-& "C:\Program Files\Python312\python.exe" -m venv .venv
+Remove-Item -Recurse -Force .venv -ErrorAction SilentlyContinue
+& "C:\Users\Administrador\AppData\Local\Programs\Python\Python313\python.exe" -E -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python --version
+python -E --version
 ```
 
-Debe imprimir `Python 3.12.x`. Si dice otra cosa, la ruta no era la correcta:
-borra el entorno con `Remove-Item -Recurse -Force .venv` y repite.
+Debe imprimir `Python 3.13.x` (o 3.12.x). Si dice `3.7`, la ruta no era la
+correcta: borra `.venv` y repite.
+
+### 4.3 Instalar dependencias
 
 ```powershell
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -E -m pip install --upgrade pip
+python -E -m pip install -r requirements.txt
 ```
+
+Todas traen wheel precompilado para Windows: no hace falta compilador de C.
 
 `tzdata` no es opcional: Windows no trae la base IANA de zonas horarias y sin
 ella el API falla al arrancar con `ZoneInfoNotFoundError: America/Lima`.
@@ -186,7 +230,7 @@ ella el API falla al arrancar con `ZoneInfoNotFoundError: America/Lima`.
 Comprobar que el código está sano (36 pruebas que no necesitan base de datos):
 
 ```powershell
-python -m pytest tests/test_protocol.py -q
+python -E -m pytest tests/test_protocol.py -q
 ```
 
 ---
@@ -269,7 +313,7 @@ equipos, las IPs de las dos sedes, la de Horario360 y los puertos.
 Generar el secreto del API:
 
 ```powershell
-python -c "import secrets; print(secrets.token_urlsafe(48))"
+python -E -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 ### 6.3 Contraseñas con caracteres especiales
@@ -278,7 +322,7 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 hay que codificarla:
 
 ```powershell
-python -c "from urllib.parse import quote; print(quote(input('clave: '), safe=''))"
+python -E -c "from urllib.parse import quote; print(quote(input('clave: '), safe=''))"
 ```
 
 Caracteres como `*`, `.`, `-` o `_` no necesitan codificación.
@@ -286,7 +330,7 @@ Caracteres como `*`, `.`, `-` o `_` no necesitan codificación.
 ### 6.4 Comprobar que se lee bien
 
 ```powershell
-python -c "from app.config import get_settings; s=get_settings(); import urllib.parse as u; p=u.urlsplit(s.pg_dsn); print(f'host={p.hostname} puerto={p.port} base={p.path.lstrip(chr(47))} usuario={p.username}')"
+python -E -c "from app.config import get_settings; s=get_settings(); import urllib.parse as u; p=u.urlsplit(s.pg_dsn); print(f'host={p.hostname} puerto={p.port} base={p.path.lstrip(chr(47))} usuario={p.username}')"
 ```
 
 Debe imprimir `puerto=7496`. Si sale `puerto=None` o el valor por defecto, el
@@ -340,7 +384,7 @@ el script— para no bloquear las escrituras mientras se construye:
 ```powershell
 cd C:\apps\biotime-reg
 .\.venv\Scripts\Activate.ps1
-python -m tools.check_db
+python -E -m tools.check_db
 ```
 
 Salida esperada:
@@ -504,7 +548,7 @@ Confirmar que PostgreSQL sigue vivo:
 
 ```powershell
 Get-Service | Where-Object { $_.Name -match 'postgres' } | Format-Table Name, Status
-python -m tools.check_db          # debe seguir en verde
+python -E -m tools.check_db          # debe seguir en verde
 ```
 
 ### 2.3 Confirmar que el puerto 83 quedó libre
@@ -610,7 +654,7 @@ que el puerto del `PG_DSN` coincida con el del paso 2.2, y que `pg_hba.conf`
 acepte conexiones desde `127.0.0.1`.
 
 **`ZoneInfoNotFoundError: America/Lima`.** Falta `tzdata`:
-`pip install tzdata`.
+`python -E -m pip install tzdata`.
 
 **El servicio no arranca.** Mirar `logs\biotime-reg-*.err.log`. Causa habitual:
 `.env` ausente o `PG_DSN` mal escrito.
