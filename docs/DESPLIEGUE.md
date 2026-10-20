@@ -17,7 +17,7 @@ horas extra). Si alguien usa esos reportes, no los tendrá tras el corte.
 **Antes de la fase 2**, exportar el histórico de BioTime:
 
 ```powershell
-& "C:\ruta\a\pg_dump.exe" -U postgres -Fc -f "D:\respaldos\biotime_previo_corte.dump" biotime
+& "C:\ZKBioTime\pgsql\bin\pg_dump.exe" -h 127.0.0.1 -p 7496 -U postgres -Fc -f "D:\respaldos\biotime_previo_corte.dump" biotime
 ```
 
 ---
@@ -139,13 +139,32 @@ Debe salir el proceso de BioTime. Es el puerto que hay que liberar en la fase 2.
 
 ### 2.4 Localizar psql.exe
 
-Hace falta para ejecutar los scripts SQL. Viene con la instalación de BioTime:
+Hace falta para ejecutar los scripts SQL. Viene con la instalación de BioTime,
+normalmente en `C:\ZKBioTime\pgsql\bin\psql.exe`:
 
 ```powershell
 Get-ChildItem C:\ZKBioTime -Recurse -Filter psql.exe -EA SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
 ```
 
-Anota la ruta: se usa en los pasos 5 y 7.
+> ⚠️ **Siempre con `-h 127.0.0.1 -p 7496`.** Sin `-p`, `psql` intenta el puerto
+> 5432 por defecto y falla con:
+>
+> ```
+> psql: no se pudo conectar con el servidor: Connection refused
+>       ¿Está el servidor en ejecución ... en el puerto 5432?
+> ```
+>
+> No significa que PostgreSQL esté caído: significa que no está donde `psql`
+> lo buscó.
+
+Comprobar que responde antes de seguir:
+
+```powershell
+& "C:\ZKBioTime\pgsql\bin\psql.exe" -h 127.0.0.1 -p 7496 -U postgres -d biotime -c "SELECT version();"
+```
+
+Pedirá la contraseña. Si responde con la versión de PostgreSQL, los pasos 5 y 7
+funcionarán.
 
 ---
 
@@ -249,7 +268,7 @@ Editar `sql\002_app_user.sql` y cambiar `CAMBIAR_ESTA_CLAVE`. Luego, como
 superusuario:
 
 ```powershell
-& "C:\ruta\a\psql.exe" -U postgres -d biotime -f C:\apps\biotime-reg\sql\002_app_user.sql
+& "C:\ZKBioTime\pgsql\bin\psql.exe" -h 127.0.0.1 -p 7496 -U postgres -d biotime -f C:\apps\biotime-reg\sql\002_app_user.sql
 ```
 
 `psql.exe` está en el `bin\` de la instalación de PostgreSQL que usa BioTime.
@@ -354,7 +373,7 @@ una copia del cuerpo crudo de cada petición, para poder reprocesar si el
 firmware envía algo que el parser no reconoce.
 
 ```powershell
-& "C:\ruta\a\psql.exe" -U postgres -d biotime -f C:\apps\biotime-reg\sql\001_schema.sql
+& "C:\ZKBioTime\pgsql\bin\psql.exe" -h 127.0.0.1 -p 7496 -U postgres -d biotime -f C:\apps\biotime-reg\sql\001_schema.sql
 ```
 
 Es idempotente: se puede repetir sin efectos.
@@ -372,7 +391,7 @@ No hace falta para arrancar. Cuando lo ejecutes, usa `CONCURRENTLY` —ya viene 
 el script— para no bloquear las escrituras mientras se construye:
 
 ```powershell
-& "C:\ruta\a\psql.exe" -U postgres -d biotime -f C:\apps\biotime-reg\sql\003_index_punch_time.sql
+& "C:\ZKBioTime\pgsql\bin\psql.exe" -h 127.0.0.1 -p 7496 -U postgres -d biotime -f C:\apps\biotime-reg\sql\003_index_punch_time.sql
 ```
 
 ---
@@ -530,7 +549,7 @@ Aquí se corta BioTime. Hacerlo fuera de horario de marcación.
 ### 2.1 Respaldo
 
 ```powershell
-& "C:\ruta\a\pg_dump.exe" -U postgres -Fc -f "D:\respaldos\biotime_previo_corte.dump" biotime
+& "C:\ZKBioTime\pgsql\bin\pg_dump.exe" -h 127.0.0.1 -p 7496 -U postgres -Fc -f "D:\respaldos\biotime_previo_corte.dump" biotime
 ```
 
 ### 2.2 Detener BioTime
@@ -658,6 +677,10 @@ acepte conexiones desde `127.0.0.1`.
 
 **El servicio no arranca.** Mirar `logs\biotime-reg-*.err.log`. Causa habitual:
 `.env` ausente o `PG_DSN` mal escrito.
+
+**`psql: Connection refused ... en el puerto 5432`.** Falta `-p 7496`. La base
+de BioTime no está en el puerto por defecto. Todos los comandos `psql` y
+`pg_dump` de esta guía llevan `-h 127.0.0.1 -p 7496`.
 
 **Puerto 83 ocupado.** Algo de BioTime sigue vivo:
 ```powershell
