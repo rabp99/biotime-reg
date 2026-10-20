@@ -12,7 +12,7 @@
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'biotime_reg') THEN
-        CREATE ROLE biotime_reg LOGIN PASSWORD 'CAMBIAR_ESTA_CLAVE';
+        CREATE ROLE biotime_reg LOGIN PASSWORD 'Regional1478#';
     END IF;
 END
 $$;
