@@ -29,6 +29,10 @@ BASE_ENV = {
     "DEVICE_TZ_FALLBACK": "-5",
     "COMPANY_CODE": "1",
     "STORE_RAW_BODIES": "true",
+    "CORRECTIONS_ENABLED": "false",
+    # Con TEST_PG_FIX_DSN apuntando al rol biotime_reg_fix (sql/005_fix_user.sql)
+    # las pruebas de corrección verifican además que sus permisos alcanzan.
+    "PG_FIX_DSN": os.environ.get("TEST_PG_FIX_DSN", TEST_DSN),
 }
 
 

@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import router as api_router
 from app.config import get_settings
+from app.corrections_api import router as corrections_router
 from app.db import close_pool, get_pool, init_pool
 from app.ingest import router as ingest_router
 
@@ -112,13 +113,13 @@ def _build(name: str, *routers) -> FastAPI:
 #: Solo ingesta. Es lo que escucha en el puerto público 83.
 ingest_app = _build("Ingesta ADMS ZKTeco", ingest_router)
 
-#: Solo consulta. Puerto restringido a Horario360.
-api_app = _build("API de marcaciones (contrato BioTime 8.5)", api_router)
+#: Solo consulta (y corrección de códigos). Puerto restringido a Horario360.
+api_app = _build("API de marcaciones (contrato BioTime 8.5)", api_router, corrections_router)
 
 #: Ambos en un solo proceso. Útil en desarrollo y para pruebas de extremo a
 #: extremo. El API va primero: el catch-all /iclock/{subpath:path} de la ingesta
 #: capturaría /iclock/api/transactions/ y devolvería "OK" en texto plano.
-app = _build("Servidor de marcaciones ZKTeco", api_router, ingest_router)
+app = _build("Servidor de marcaciones ZKTeco", api_router, corrections_router, ingest_router)
 
 
 async def _serve_both() -> None:

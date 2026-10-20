@@ -43,7 +43,20 @@ permite migrar consumo e ingesta por separado.
 | `app/api.py` | Contrato BioTime 8.5 que consume Horario360 |
 | `app/repository.py` | SQL sobre `iclock_transaction` / `iclock_terminal` |
 | `app/security.py` | Verificación de contraseñas Django + JWT |
+| `app/corrections.py` | SQL de la corrección de códigos mal enrolados |
+| `app/corrections_api.py` | Rutas `/api/emp-code-corrections/` (Horario360) |
 | `sql/001_schema.sql` | Añadidos sobre la base de BioTime (idempotente) |
+| `sql/004_emp_code_correction.sql` | Registro de correcciones (idempotente) |
+| `sql/005_fix_user.sql` | Rol `biotime_reg_fix`, el único con UPDATE sobre marcaciones |
+
+## Corrección de códigos mal enrolados
+
+Cuando un trabajador se enrola en el equipo con un código equivocado, sus
+marcaciones quedan bajo ese código y Horario360 no las encuentra. El API expone
+`/api/emp-code-corrections/` (preview, corregir, historial, deshacer) para
+reasignarlas al código correcto dentro de un rango de fechas. Apagado por
+defecto (`CORRECTIONS_ENABLED`) y con su propio rol de base de datos. Contrato,
+reglas e instalación en **[`docs/CORRECCION-CODIGOS.md`](docs/CORRECCION-CODIGOS.md)**.
 
 ## Despliegue
 

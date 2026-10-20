@@ -78,6 +78,14 @@ errores visibles.
 6. **`first_name` y `punch_state_display` no están en el manual PDF** pero
    Horario360 los lee. El API real de BioTime devuelve más de lo documentado.
 
+7. **Solo la corrección de códigos modifica marcaciones, y con su propio rol.**
+   `app/corrections.py` usa el pool de `PG_FIX_DSN` (rol `biotime_reg_fix`,
+   UPDATE solo en `emp_code`, `emp_id`, `purpose`). La ingesta y la consulta
+   siguen con `PG_DSN`, que no tiene UPDATE ni DELETE sobre
+   `iclock_transaction`. No mezclar los pools. Una corrección nunca viola el
+   UNIQUE `(company_code, emp_code, punch_time)`: los choques se omiten y se
+   cuentan. Ver `docs/CORRECCION-CODIGOS.md`.
+
 ## Realidades de los datos
 
 Descubiertas analizando el dump de producción; condicionan el diseño.

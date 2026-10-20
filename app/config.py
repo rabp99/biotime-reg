@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     api_default_page_size: int = 100
     api_max_page_size: int = 5000
 
+    # Corrección de códigos mal enrolados (rutas /api/emp-code-corrections/).
+    # Es la única parte de la aplicación que modifica marcaciones, así que va
+    # apagada por defecto y usa su propia conexión con un rol que sí tiene
+    # UPDATE (sql/005_fix_user.sql). El rol de PG_DSN sigue sin poder tocar
+    # iclock_transaction: un error en la ingesta o en la consulta no puede
+    # alterar marcaciones aunque quisiera.
+    corrections_enabled: bool = False
+    pg_fix_dsn: str = ""
+
     log_level: str = "INFO"
 
     @property
